@@ -103,7 +103,7 @@ class Trader:
         if not rows:
             return None
         k = S.sanitize(S.regularize(rows))
-        k["t0"] = tok["t0"]
+        k["t0"], k["p0"] = tok["t0"], tok["p0"]          # p0 = graduation price (bundle-pump filter)
         return k
 
     # ------------------------------------------------------------ 1. discovery
@@ -157,7 +157,7 @@ class Trader:
                     t0 = int(time.mktime(time.strptime(a["pool_created_at"][:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone)
                     if time.time() - t0 > self.p["age_max_h"] * 3600 or mint in self.tokens:
                         continue
-                    self.add_token({"mint": mint, "pool": a["address"], "quote": core.WSOL, "seed_quote": 84.0, "seed_tok": 206_900_000.0,
+                    self.add_token({"mint": mint, "pool": a["address"], "quote": core.WSOL, "seed_quote": 70.0, "seed_tok": 206_900_000.0,
                                     "symbol": a["name"].split(" / ")[0]}, t0, src="bootstrap")
                     n += 1
             if n:

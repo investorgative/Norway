@@ -102,7 +102,7 @@ main{padding:16px 22px;max-width:1700px;margin:0 auto}
 .cand:hover{border-color:var(--line2)}.cand.full{border-color:var(--aur2);box-shadow:0 0 22px rgba(125,249,166,.2)}
 .cand .top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.cand .top b{font:700 14px var(--mf)}.cand .top span{font:11px var(--mf);color:var(--mute)}
 .cand .top .sp{flex:1}
-.cks{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.cks{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
 .ck{height:22px;border-radius:6px;background:rgba(255,255,255,.04);position:relative;overflow:hidden;font:700 8.5px var(--hf);letter-spacing:.1em;text-transform:uppercase;display:grid;place-items:center;color:var(--mute)}
 .ck i{position:absolute;left:0;top:0;bottom:0;background:rgba(143,211,255,.18);transition:width .8s}.ck.ok{color:#04130f}.ck.ok i{background:linear-gradient(90deg,var(--aur),var(--aur2))}
 .ck span{position:relative}
@@ -147,7 +147,7 @@ tbody tr{cursor:pointer}tbody tr:hover{background:rgba(76,224,210,.06)}.scroll{o
 #modal-c{max-width:640px;width:100%;max-height:90vh;overflow:auto}
 .empty{padding:22px;text-align:center;color:var(--mute);font:12px var(--mf)}
 .safe{display:grid;gap:4px;margin-top:8px;font:11px var(--mf)}.safe div{display:flex;gap:8px}.safe .y{color:var(--aur2)}.safe .n{color:var(--red)}.safe .q{color:var(--gold)}
-@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two,.half{grid-template-columns:minmax(0,1fr)}.jgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.clock{margin-left:0}.cks{grid-template-columns:repeat(3,1fr)}main,header,nav{padding-left:12px;padding-right:12px}.funnel{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two,.half{grid-template-columns:minmax(0,1fr)}.jgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.clock{margin-left:0}.cks{grid-template-columns:repeat(2,1fr)}main,header,nav{padding-left:12px;padding-right:12px}.funnel{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
@@ -368,7 +368,7 @@ function pickToken(mint,src){if(src==="bt"){SELbt=mint;$("#bt-chart-card").class
 let SELuser=false,SELbt=null;
 async function loadChart(){if(!SEL)return;try{const d=await api("/api/chart?mint="+SEL);if(!mainChart)mainChart=tokenChart($("#ch-main"));mainChart.set(d,SEL);$("#ch-tag").textContent=(d.meta.symbol||"—")+" · 5m";$("#ch-link").href=d.meta.pool?"https://dexscreener.com/solana/"+d.meta.pool:"#"}catch(e){}}
 async function loadBtChart(){if(!SELbt)return;try{const d=await api("/api/chart?src=bt&mint="+SELbt);if(!btChart)btChart=tokenChart($("#bt-ch"));btChart.set(d,SELbt);$("#bt-ch-tag").textContent=(d.meta.symbol||SELbt.slice(0,6))+" · 5m"}catch(e){toast(e.message,true)}}
-function ckChips(ch){const short={age:"age",mcap:"mcap",brk:"breakout",vol:"volume",act:"activity",ext:"extension"};return h("div",{class:"cks"},ch.map(c=>h("div",{class:"ck"+(c.ok?" ok":""),title:c.name},h("i",{style:`width:${c.ok?100:Math.round(c.prog*100)}%`}),h("span",{},short[c.k]||c.k))))}
+function ckChips(ch){const short={age:"age",mcap:"mcap",brk:"breakout",vol:"volume",act:"activity",ext:"not extended",turn:"turnover",jump:"no bundle"};return h("div",{class:"cks"},ch.map(c=>h("div",{class:"ck"+(c.ok?" ok":""),title:c.name},h("i",{style:`width:${c.ok?100:Math.round(c.prog*100)}%`}),h("span",{},short[c.k]||c.k))))}
 function safetyList(s){if(!s||!s.checks||!s.checks.length)return null;return h("div",{class:"safe"},s.checks.map(c=>h("div",{},h("span",{class:c.unknown?"q":c.ok?"y":"n"},c.unknown?"?":c.ok?"✓":"✗"),h("span",{},c.name+" — "+c.detail))))}
 function drawStatus(j){const s=j.state||{},el=$("#status"),P=s.params||{};$("#st-mode").textContent=(s.autonomy||"auto").toUpperCase();
   if(!s.ts){el.replaceChildren(h("div",{class:"empty"},"The trader has not written a status yet. Is the tmux session Norway running?"));return}
@@ -377,17 +377,17 @@ function drawStatus(j){const s=j.state||{},el=$("#status"),P=s.params||{};$("#st
   let wt,ws;
   if((s.proposals||[]).length){wt="Waiting for your approval";ws="a signal passed every check — approve or reject below"}
   else if(pos.length>=(P.max_open||99)){wt="Managing positions";ws="all slots are in use"}
-  else if(best&&best.checks.length){const miss=best.checks.filter(x=>!x.ok).map(x=>x.name.toLowerCase());wt=miss.length?`Closest: ${best.symbol} — ${best.met}/6 conditions`:`${best.symbol} is ready — entering at candle close`;ws=miss.length?"still missing: "+miss.join(", "):"confirming on exchange candles + safety gate"}
+  else if(best&&best.checks.length){const miss=best.checks.filter(x=>!x.ok).map(x=>x.name.toLowerCase());wt=miss.length?`Closest: ${best.symbol} — ${best.met}/${best.checks.length} conditions`:`${best.symbol} is ready — entering at candle close`;ws=miss.length?"still missing: "+miss.join(", "):"confirming on exchange candles + safety gate"}
   else if(c.length){wt="Collecting candles for "+c.length+" hot tokens";ws=`a token needs ${P.brk_n+2} five-minute candles before the breakout level exists`}
   else{wt="Scanning for survivors";ws=`waiting for a graduate to reach ${big(P.mcap_min)} market cap, ${P.age_min_h} h after graduation`}
-  const kids=[h("div",{class:"funnel"},fn(s.seen,"graduations seen"),fn(s.watch,"watching"),fn(s.hot,"hot",s.hot>0),fn(c.filter(x=>x.met>=4).length,"near signal",c.some(x=>x.met>=4)),fn(pos.length,"positions",pos.length>0)),
+  const kids=[h("div",{class:"funnel"},fn(s.seen,"graduations seen"),fn(s.watch,"watching"),fn(s.hot,"hot",s.hot>0),fn(c.filter(x=>x.met>=6).length,"near signal",c.some(x=>x.met>=6)),fn(pos.length,"positions",pos.length>0)),
     h("div",{class:"wait"},h("div",{class:"radar"}),h("div",{},h("b",{},wt),h("small",{},ws)))];
   for(const p of s.proposals||[]){const left=Math.max(0,Math.round((p.expires-j.now)/1000));kids.push(h("div",{class:"prop"},h("div",{style:"display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"},h("b",{style:"font:700 15px var(--mf)"},"BUY "+p.symbol+"?"),h("span",{class:"mut",style:"font:11px var(--mf)"},`${px(p.price)} · mcap ${big(p.mcap)} · ${usd(p.size)} · safety ${p.safety.score}/100 · ${left}s left`)),safetyList(p.safety),
       h("div",{style:"display:flex;gap:8px;margin-top:10px"},h("button",{class:"btn go",onclick:()=>cmd("approve",p.mint)},"Approve"),h("button",{class:"btn red",onclick:()=>cmd("reject",p.mint)},"Reject"))))}
   if(!c.length)kids.push(h("div",{class:"empty"},"no hot tokens right now"));
   for(const v of c.slice(0,8))kids.push(h("div",{class:"cand"+(v.checks.length&&v.met===v.checks.length?" full":""),onclick:()=>pickToken(v.mint,"live")},
     h("div",{class:"top"},h("b",{},v.symbol),h("span",{},px(v.price)),h("span",{},"mcap "+big(v.mcap)),h("span",{},"age "+dur(v.age_h)),h("span",{class:cls(v.chg_h1)},sgn(v.chg_h1,1,"% 1h")),h("span",{class:"sp"}),
-      v.cooldown>0?h("span",{style:"color:var(--gold)"},"cooldown "+Math.ceil(v.cooldown/60)+"m"):h("span",{},v.checks.length?v.met+"/6":"warming up")),
+      v.cooldown>0?h("span",{style:"color:var(--gold)"},"cooldown "+Math.ceil(v.cooldown/60)+"m"):h("span",{},v.checks.length?v.met+"/"+v.checks.length:"warming up")),
     v.checks.length?ckChips(v.checks):h("div",{class:"mut",style:"font:10.5px var(--mf)"},"collecting candles…"),v.safety&&!v.safety.ok?safetyList({checks:v.safety.checks.filter(x=>!x.ok)}):null));
   el.replaceChildren(...kids)}
 async function cmd(c,mint){try{await api("/api/command",{cmd:c,mint});toast(c+" sent")}catch(e){toast(e.message,true)}}
@@ -399,7 +399,7 @@ function drawPositions(s){const p=s.positions||[],el=$("#positions");$("#pos-n")
         h("div",{},h("label",{},"To stop"),h("b",{},fmt(x.dist_pct,1)+"%")),h("div",{},h("label",{},"Locked by stop"),h("b",{class:cls(x.locked_r)},sgn(x.locked_r,2,"R"))),h("div",{},h("label",{},"Size"),h("b",{},usd(x.size)+(x.left<1?" ("+fmt(x.left*100,0)+"% left)":""))),
         h("div",{},h("label",{},"Risk"),h("b",{},usd(x.risk_usd))),h("div",{},h("label",{},"Fees so far"),h("b",{},usd(x.fees,3))),h("div",{},h("label",{},"Safety"),h("b",{},x.safety_score==null?"—":x.safety_score+"/100")),h("div",{},h("label",{},"Time stop in"),h("b",{},dur(Math.max(0,x.max_hold_h-x.hold_h))))),
       h("div",{class:"bar",title:"price between the initial stop and the peak"},h("i",{style:`width:${prog*100}%`})))}))}
-function drawChartToks(s){const list=[];for(const p of s.positions||[])list.push([p.mint,p.symbol,"POS"]);for(const c of (s.candidates||[]).slice(0,7))list.push([c.mint,c.symbol,c.checks.length?c.met+"/6":"…"]);
+function drawChartToks(s){const list=[];for(const p of s.positions||[])list.push([p.mint,p.symbol,"POS"]);for(const c of (s.candidates||[]).slice(0,7))list.push([c.mint,c.symbol,c.checks.length?c.met+"/"+c.checks.length:"…"]);
   if(!SELuser||!list.some(x=>x[0]===SEL)&&!SELuser){if(s.focus&&s.focus!==SEL){SEL=s.focus;loadChart()}}
   if(!SEL&&list.length){SEL=list[0][0];loadChart()}
   if(SEL&&!list.some(x=>x[0]===SEL))list.push([SEL,($("#ch-tag").textContent||"").split(" ")[0]||SEL.slice(0,5),"SEL"]);
@@ -426,7 +426,7 @@ async function loadLog(){try{const j=await api("/api/log?n=200");const el=$("#lo
 
 /* ============================================================ backtest tab */
 let btWas=false,SETT=null;
-function paramForm(el,P,limits,prefix){const lab={age_min_h:"Min age (h)",age_max_h:"Max age (h)",mcap_min:"Min market cap $",mcap_max:"Max market cap $",brk_n:"Breakout lookback (candles)",vol_n:"Volume window (candles)",vol_min:"Min volume in window $",act_min:"Min share of active candles",max_ext:"Max extension (× range low)",stop_pct:"Hard stop %",trail_pct:"Trailing stop %",tp_r:"Take-profit at R (0 = off)",tp_frac:"Take-profit share",max_hold_h:"Time stop (h)",cooldown_h:"Cooldown after exit (h)",dead_mcap:"Dead below market cap $"};
+function paramForm(el,P,limits,prefix){const lab={age_min_h:"Min age (h)",age_max_h:"Max age (h)",mcap_min:"Min market cap $",mcap_max:"Max market cap $",brk_n:"Breakout lookback (candles)",vol_n:"Volume window (candles)",vol_min:"Min volume in window $",act_min:"Min share of active candles",max_ext:"Max extension (× range low)",turn_min:"Min turnover (volume % of mcap)",jump_max:"Max migration jump (× grad price)",stop_pct:"Hard stop %",trail_pct:"Trailing stop %",tp_r:"Take-profit at R (0 = off)",tp_frac:"Take-profit share",max_hold_h:"Time stop (h)",cooldown_h:"Cooldown after exit (h)",dead_mcap:"Dead below market cap $"};
   el.replaceChildren(...Object.keys(lab).map(k=>h("div",{class:"fld"},h("label",{},lab[k]),h("input",{type:"number",step:"any",id:prefix+k,value:P[k]}))))}
 const readParams=prefix=>{const o={};$$(`input[id^="${prefix}"]`).forEach(i=>{if(i.value!=="")o[i.id.slice(prefix.length)]=+i.value});return o};
 function btProgress(b){const p=$("#bt-prog");p.classList.toggle("on",!!b.running);p.firstChild.style.width=Math.round((b.pct||0)*100)+"%";if(btWas&&!b.running)loadBt();btWas=!!b.running;$("#bt-err").textContent=b.error||""}
@@ -434,7 +434,7 @@ async function loadBt(){try{const j=await api("/api/backtest/result");if(j.resul
 /* ============================================================ optimizer tab */
 let opWas=false;
 async function pollOpt(){try{const s=await api("/api/optimize/status");const p=$("#op-prog");p.classList.toggle("on",!!s.running);p.firstChild.style.width=(s.total?s.done/s.total*100:0)+"%";opWas=!!s.running;
-    const sm=s.summary;$("#op-sum").textContent=sm?`${sm.tested} tested · ${sm.enough_trades} with ≥15 train trades · profitable in train ${sm.train_profitable} · in test ${sm.test_profitable} · in both ${sm.both_profitable}`:(s.running?"starting…":"");
+    const sm=s.summary;$("#op-sum").textContent=sm?`${sm.tested} tested · ${sm.enough_trades} with ≥8 train trades · profitable in train ${sm.train_profitable} · in test ${sm.test_profitable} · in both ${sm.both_profitable}`:(s.running?"starting…":"");
     const rows=s.rows||[];if(!rows.length){$("#op-table").replaceChildren();return}
     const cell=(q,k,n=1,u="")=>h("td",{class:k==="r"||k==="ret"?cls(q[k]):""},k==="n"?q.n:sgn(q[k],n,u).replace(/^\+/,k==="r"||k==="ret"?"+":""));
     $("#op-table").replaceChildren(h("thead",{},h("tr",{},["","Train R","n","PF","DD%","Test R","n","PF","DD%","Parameters (vs. current)",""].map((x,i)=>h("th",{class:i===9?"l":""},x)))),

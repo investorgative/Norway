@@ -15,20 +15,25 @@ import math
 import numpy as np
 
 BAR = 300                       # seconds
+CRASH = 0.75                    # a candle that closes below stop * CRASH is a rug / dump candle: the stop order is
+                                # assumed to be filled at that close, not at the stop price
 SUPPLY = 1_000_000_000          # every pump.fun token has a fixed supply of 1 billion
 
 DEFAULT_PARAMS = {
-    "age_min_h": 6.0,           # hours since graduation before the bot is allowed to buy
-    "age_max_h": 72.0,          # ... and after which it loses interest
-    "mcap_min": 100_000.0,      # market cap window in USD
-    "mcap_max": 3_000_000.0,
-    "brk_n": 48,                # breakout: close above the highest high of the previous brk_n candles
+    "age_min_h": 8.0,           # hours since graduation before the bot is allowed to buy
+    "age_max_h": 168.0,         # ... and after which it loses interest
+    "mcap_min": 150_000.0,      # market cap window in USD
+    "mcap_max": 5_000_000.0,
+    "brk_n": 24,                # breakout: close above the highest high of the previous brk_n candles
     "vol_n": 12,                # volume window (candles)
-    "vol_min": 15_000.0,        # USD traded inside the volume window
+    "vol_min": 10_000.0,        # USD traded inside the volume window
     "act_min": 0.75,            # share of the last vol_n candles that had at least one trade
-    "max_ext": 3.0,             # do not chase: close / lowest low of the last brk_n candles must stay below this
-    "stop_pct": 20.0,           # hard stop below the entry price
-    "trail_pct": 30.0,          # trailing stop below the highest close since entry
+    "max_ext": 2.5,             # do not chase: close / lowest low of the last brk_n candles must stay below this
+    "turn_min": 2.0,            # organic flow: volume in the window must be at least this % of the market cap
+    "jump_max": 3.0,            # bundle filter: skip tokens whose price was pushed above this multiple of the
+                                # graduation price within the first 10 minutes (one wallet buying the pool)
+    "stop_pct": 25.0,           # hard stop below the entry price
+    "trail_pct": 25.0,          # trailing stop below the highest close since entry
     "tp_r": 0.0,                # partial take-profit at this many R (0 = off)
     "tp_frac": 0.5,             # share of the position sold at the take-profit
     "max_hold_h": 48.0,         # time stop
@@ -41,6 +46,7 @@ PARAM_LIMITS = {                # (low, high, type) - used by the optimizer and 
     "mcap_min": (20_000.0, 2_000_000.0, float), "mcap_max": (100_000.0, 100_000_000.0, float),
     "brk_n": (3, 288, int), "vol_n": (1, 72, int), "vol_min": (0.0, 500_000.0, float),
     "act_min": (0.0, 1.0, float), "max_ext": (1.1, 50.0, float),
+    "turn_min": (0.0, 100.0, float), "jump_max": (1.2, 100000.0, float),
     "stop_pct": (3.0, 60.0, float), "trail_pct": (5.0, 80.0, float),
     "tp_r": (0.0, 20.0, float), "tp_frac": (0.1, 0.9, float),
     "max_hold_h": (0.5, 336.0, float), "cooldown_h": (0.0, 72.0, float), "dead_mcap": (0.0, 100_000.0, float),
@@ -170,6 +176,7 @@ def indicators(tok, p, cache=None):
         "act": memo(("act", p["vol_n"]), lambda: _roll_sum((V > 0).astype(float), p["vol_n"]) / p["vol_n"]),
         "mcap": mcap, "age_h": age,
         "dead": memo(("dead", p["dead_mcap"]), lambda: np.maximum.accumulate((age >= 1.0) & (mcap < p["dead_mcap"]))),
+        "jump": memo("jump", lambda: float(np.max(H[:2])) / tok["p0"] if tok.get("p0") else 1.0),
     }
 
 
@@ -181,7 +188,10 @@ def signal_mask(tok, ind, p):
              & (ind["mcap"] >= p["mcap_min"]) & (ind["mcap"] <= p["mcap_max"])
              & (C > ind["hh"])
              & (ind["vol"] >= p["vol_min"]) & (ind["act"] >= p["act_min"])
-             & (C / ind["ll"] <= p["max_ext"]) & ~ind["dead"])
+             & (C / ind["ll"] <= p["max_ext"]) & ~ind["dead"]
+             & (ind["vol"] >= ind["mcap"] * p["turn_min"] / 100.0))
+        if ind["jump"] > p["jump_max"]:
+            m = m & False
     return np.nan_to_num(m, nan=0).astype(bool)
 
 
@@ -206,6 +216,11 @@ def checks(tok, ind, i, p):
          "val": act, "need": [p["act_min"]], "unit": "x", "prog": pr((act or 0) / max(p["act_min"], 1e-9))},
         {"k": "ext", "name": "Not over-extended", "ok": ext is not None and ext <= p["max_ext"],
          "val": ext, "need": [p["max_ext"]], "unit": "x", "prog": pr(1.0 if ext is not None and ext <= p["max_ext"] else 0.0)},
+        {"k": "turn", "name": "Organic turnover", "ok": vol is not None and mc is not None and vol >= mc * p["turn_min"] / 100.0,
+         "val": (vol / mc * 100.0) if vol is not None and mc else None, "need": [p["turn_min"]], "unit": "%",
+         "prog": pr((vol / mc * 100.0) / max(p["turn_min"], 1e-9) if vol is not None and mc else 0)},
+        {"k": "jump", "name": "No bundle pump at migration", "ok": ind["jump"] <= p["jump_max"],
+         "val": float(ind["jump"]), "need": [p["jump_max"]], "unit": "x", "prog": 1.0 if ind["jump"] <= p["jump_max"] else 0.0},
     ]
 
 
@@ -253,7 +268,8 @@ def on_bar(pos, o, h, l, c, t, p):
         pos["left"] = 0.0
         return out
     if l <= pos["stop"]:
-        out.append((pos["left"], pos["stop"], "trail" if pos["stop"] > pos["stop0"] else "stop", True))
+        px = pos["stop"] if c >= pos["stop"] * CRASH else c
+        out.append((pos["left"], px, "trail" if pos["stop"] > pos["stop0"] else "stop", True))
         pos["left"] = 0.0
         return out
     if not pos["tp_done"] and h >= pos["tp_px"]:

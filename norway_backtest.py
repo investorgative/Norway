@@ -34,12 +34,13 @@ BT_RESULT = os.path.join(core.DATA_DIR, "backtest.json")
 BAR = S.BAR
 
 SPACE = {
-    "age_min_h": [0.5, 1, 2, 4, 6, 12, 24], "age_max_h": [24, 48, 72, 168],
+    "age_min_h": [0.25, 1, 2, 4, 8, 12, 24], "age_max_h": [24, 48, 72, 168],
     "mcap_min": [50e3, 75e3, 100e3, 150e3, 250e3, 500e3], "mcap_max": [1e6, 3e6, 10e6, 100e6],
     "brk_n": [6, 12, 24, 48, 96], "vol_n": [3, 6, 12, 24], "vol_min": [2e3, 5e3, 15e3, 40e3, 100e3],
     "act_min": [0.5, 0.75, 0.9], "max_ext": [1.5, 2, 3, 5, 10],
     "stop_pct": [10, 15, 20, 25, 30, 40], "trail_pct": [15, 20, 30, 40, 50],
     "tp_r": [0, 1, 2, 3], "max_hold_h": [6, 12, 24, 48, 96],
+    "turn_min": [0, 1, 2, 5, 10], "jump_max": [1.6, 3, 10, 100000],
 }
 
 
@@ -223,7 +224,7 @@ def split_time(toks, share):
 
 def score(q):
     """what the optimizer maximises on the TRAIN part: R per trade matters, but only with enough trades and tokens"""
-    if q["n"] < 15 or q["tokens"] < 8:
+    if q["n"] < 8 or q["tokens"] < 4:
         return -999.0
     return q["r"] * min(1.0, q["pf"] / 1.5) - 0.2 * q["dd"]
 
@@ -254,7 +255,7 @@ def optimize(toks, cfg, combos=150, seed=None, state_path=OPT_STATE, stop_flag=N
         rows.append({"params": c, "train": a, "test": b, "score": score(a), "base": n == 0})
         if n % 5 == 0 or n == len(cand) - 1:
             top = sorted(rows, key=lambda r: -r["score"])[:40]
-            ok = [r for r in rows if r["train"]["n"] >= 15]
+            ok = [r for r in rows if r["train"]["n"] >= 8]
             st.update(done=n + 1, rows=top, summary={
                 "tested": len(rows), "enough_trades": len(ok),
                 "train_profitable": sum(1 for r in ok if r["train"]["r"] > 0),

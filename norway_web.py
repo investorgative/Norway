@@ -319,12 +319,17 @@ def api_chart():
         if k is None:
             return {"candles": [], "meta": meta}
         n = len(k["C"])
-        lo = max(0, n - 1500)
+        lo, hi = max(0, n - 1500), n
+        if trades and not pos and src == "bt":              # centre the window on the trades of this token
+            g0 = int(k["T"][0])
+            lo = max(0, (min(t["entry_ts"] for t in trades) // 1000 - g0) // S.BAR - 150)
+            hi = min(n, max(lo + 300, (max(t["exit_ts"] for t in trades) // 1000 - g0) // S.BAR + 150))
+            lo = max(lo, hi - 1500)
         hh = S._roll_max_prev(k["H"], p["brk_n"])
         cand = [{"time": int(k["T"][i]), "open": float(k["O"][i]), "high": float(k["H"][i]), "low": float(k["L"][i]),
-                 "close": float(k["C"][i])} for i in range(lo, n)]
-        vol = [{"time": int(k["T"][i]), "value": float(k["V"][i]), "up": bool(k["C"][i] >= k["O"][i])} for i in range(lo, n)]
-        lvl = [{"time": int(k["T"][i]), "value": float(hh[i])} for i in range(lo, n) if hh[i] == hh[i]]
+                 "close": float(k["C"][i])} for i in range(lo, hi)]
+        vol = [{"time": int(k["T"][i]), "value": float(k["V"][i]), "up": bool(k["C"][i] >= k["O"][i])} for i in range(lo, hi)]
+        lvl = [{"time": int(k["T"][i]), "value": float(hh[i])} for i in range(lo, hi) if hh[i] == hh[i]]
         marks, stops = [], []
         for t in trades:
             marks.append({"time": t["entry_ts"] // 1000 // S.BAR * S.BAR, "kind": "buy", "px": t["entry"], "text": f"BUY #{t['id']}"})
