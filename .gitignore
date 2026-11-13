@@ -1,0 +1,8 @@
+research/data.db*
+research/*.log
+research/lab*
+__pycache__/
+*.pyc
+venv/
+data/
+config.json
